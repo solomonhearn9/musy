@@ -1,45 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Capture Audio</title>
+  <title>Speech to Text App</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
-
-<button onclick="recordAudio()">Record</button>
-
-<script>
-async function recordAudio() {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mediaRecorder = new MediaRecorder(stream);
-    const audioChunks = [];
-
-    mediaRecorder.ondataavailable = event => {
-        audioChunks.push(event.data);
-    };
-
-    mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-        const formData = new FormData();
-        formData.append('audio', audioBlob);
-
-        const response = await fetch('/get_response', {
-            method: 'POST',
-            body: formData
-        });
-        
-        const data = await response.json();
-        console.log(data);
-    };
-
-    mediaRecorder.start();
-
-    setTimeout(() => {
-        mediaRecorder.stop();
-    }, 3000);  // records for 3 seconds
-}
-</script>
-
+  <header>
+    <h1>Speech to Text App</h1>
+    <p>Record live audio</p>
+  </header>
+  <main>
+    <p><button id="record" disabled>Record</button> <button id="stop" disabled>Stop</button></p>
+    <p><audio id="audio" controls></audio></p>
+  </main>
+  <script src="static/script.js"></script>
 </body>
-</html>
