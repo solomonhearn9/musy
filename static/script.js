@@ -49,7 +49,7 @@ function stopRecording() {
 function onRecordingReady(e) {
     var audio = document.getElementById('audio');
     audio.src = URL.createObjectURL(e.data);
-    audio.play();
+    //audio.play();
 
     // Upload the audio file to the server
     uploadAudio(e.data);
@@ -63,12 +63,27 @@ function uploadAudio(audioBlob) {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
-    .then(data => {
-        console.log('Success:', data);
-        // Handle response from server...
+    .then(response => response.text())  // Assuming server sends back the filepath as plain text
+    .then(filepath => {
+        // Send filepath to synthesize_speech endpoint
+        fetch('/synthesize_speech', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ filepath: filepath })
+        })
+        .then(response => response.arrayBuffer())
+        .then(arrayBuffer => {
+            const audioContext = new AudioContext();
+            audioContext.decodeAudioData(arrayBuffer, buffer => {
+                const source = audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioContext.destination);
+                source.start(0);
+            });
+        })
+        .catch(error => console.error('Synthesis error:', error));
     })
-    .catch((error) => {
-        console.error('Error:', error);
-    });
+    .catch(error => console.error('Upload error:', error));
 }
