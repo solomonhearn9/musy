@@ -7,11 +7,13 @@
 <body>
   <header>
     <h1>Speech to Text App</h1>
-    <p>Record live audio</p>
   </header>
   <main>
-    <p><button id="record" disabled>Record</button> <button id="stop" disabled>Stop</button></p>
+    <p><button id="recordSpeech" disabled>Record Speech</button> <button id="stopRecordSpeech" disabled>Stop Speech</button></p>
+    <p><button id="recordPitch" disabled>Record Pitch</button> <button id="stopRecordPitch" disabled>Stop Pitch</button></p>
     <p><audio id="audio" controls></audio></p>
   </main>
-  <script src="static/script.js"></script>
+  <script src="static/script.js" onload=""init()></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/pitchy"></script>
+
 </body>
