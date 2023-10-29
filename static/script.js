@@ -47,6 +47,11 @@ window.onload = function () {
 
 //start and stop speech recording
 function startRecording() {
+    // Stop any existing recorder
+    if (recorder2) {
+      recorder2.stop();
+  }
+
   recordSpeechButton.disabled = true;
   stopSpeechButton.disabled = false;
   recordPitchButton.disabled = true;
@@ -65,35 +70,73 @@ function stopRecording() {
   recorder.stop();
 }
 
-//Start and Stop pitch recording 
-var audioContext, microphoneStream, pitchProcessor;
+var lastPitchSentTime = null;
+
+var audioContext, microphoneStream, pitchProcessor, recordedChunks = [];
+
 function startPitchRecording() {
- 
-    recorder.stop();
-    
+    // Stop any existing recorder
+    if (recorder) {
+        recorder.stop();
+    }
+
     recordPitchButton.disabled = true;
     stopPitchButton.disabled = false;
     recordSpeechButton.disabled = true;
     stopSpeechButton.disabled = true;
 
     // Initialize audio context
-    audioContext = new AudioContext();
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
 
     // Get microphone stream
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
         microphoneStream = audioContext.createMediaStreamSource(stream);
         pitchProcessor = audioContext.createScriptProcessor(1024, 1, 1);
+        var mediaRecorder = new MediaRecorder(stream);
 
         microphoneStream.connect(pitchProcessor);
         pitchProcessor.connect(audioContext.destination);
 
         pitchProcessor.onaudioprocess = function(event) {
             var inputData = event.inputBuffer.getChannelData(0);
-            var pitch = detectPitch(inputData);
-            displayPitch(pitch);
+            // For now, we'll just log the raw audio data
+            // Later, you can integrate aubio's pitch detection here for real-time feedback
+            console.log(inputData);
         };
+
+        mediaRecorder.ondataavailable = function(event) {
+            recordedChunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = function() {
+            var blob = new Blob(recordedChunks, { type: 'audio/wav' });
+            // Send the recorded audio to the Flask backend for pitch detection
+            var formData = new FormData();
+            formData.append('audio', blob);
+            fetch('/detect_pitch', {
+                method: 'POST',
+                body: formData
+            }).then(response => response.json()).then(data => {
+                console.log(data); // This will log the detected pitches from the backend
+            });
+        };
+
+        // Start the media recorder after a delay
+        setTimeout(function() {
+            mediaRecorder.start();
+            // Stop recording after a set duration (e.g., 5 seconds)
+            setTimeout(function() {
+                mediaRecorder.stop();
+            }, 5000);
+        }, 1000);
+    }).catch(function(err) {
+        console.error('Error accessing the microphone', err);
     });
 }
+
+
 
 function stopPitchRecording() {
   recordPitchButton.disabled = false;
@@ -107,19 +150,34 @@ function stopPitchRecording() {
   pitchProcessor.onaudioprocess = null;
 }
 
-function detectPitch(inputData) {
-  // Use pitchy to detect pitch
-  const result = pitchy.detectPitch(inputData);
-  
-  // If a pitch is detected, return it. Otherwise, return null.
-  if (result) {
-      return result.freq;
-  } else {
-      return null;
-  }
+
+function detectPitch(audioBlob) {
+
+  const formData = new FormData();
+ 
+  formData.append('audio', audioBlob, 'audio.wav');
+
+  fetch('/detect_pitch', {
+      method: 'POST',
+      body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+      console.log("Detected Pitches:", data.pitches);
+  })
+  .catch(error => console.error('Error detecting pitch:', error));
+  return jsonify(pitches=pitches, confidences=confidences)
+
 }
 
 
+function savePitchToLocal(pitch) {
+  localStorage.setItem("lastDetectedPitch", JSON.stringify(pitch));
+}
+
+function getLastSavedPitch() {
+  return JSON.parse(localStorage.getItem("lastDetectedPitch"));
+}
 
 function onRecordingReady(e) {
   var audio = document.getElementById('audio');
@@ -141,7 +199,7 @@ function onPitchRecordingReady(e) {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
+    // .then(response => response.json())
     .then(data => {
         // Display the detected pitch on the UI
         displayPitch(data.pitch);

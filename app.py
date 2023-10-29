@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify, Response
+from flask_cors import CORS
 import openai
 import os
 import requests
@@ -6,10 +7,15 @@ from werkzeug.utils import secure_filename
 from translations.dictation import text_to_speech
 from translations.gpt import respond
 import pyaudio
-import aubio
+from aubio import source, pitch
 import numpy as np
+from detectPitch import PitchDetector
+import io
+
 
 app = Flask(__name__)
+CORS(app)
+
 
 
 # Load API keys from environment variables for security
@@ -45,14 +51,37 @@ def transcribe_audio(file_path):
     transcription = result['text']
     return transcription
 
+@app.route('/detect_pitch', methods=['POST'])
+def detect_pitch():
+    # Ensure an audio file is uploaded
+    if 'audio' not in request.files:
+        return jsonify(error="No audio file uploaded"), 400
 
-# @app.route("/detect_pitch", methods=["POST"])
-# def detect_pitch():
-#     audiobuffer = stream.read(buffer_size)
-#     signal = np.fromstring(audiobuffer, dtype=np.float32)
-#     pitch = pitch_o(signal)[0]
-#     confidence = pitch_o.get_confidence()
-#     return jsonify({"pitch": pitch, "confidence": confidence})
+    audio_file_bytes = request.files['audio'].read()
+    audio_file = io.BytesIO(audio_file_bytes)
+
+    # Process the audio file using aubio's pitch detection
+    buffer_size = 1024  # Ensure this matches the expected input size
+    win_s = 4096
+    hop_s = buffer_size
+    samplerate = 44100
+    pitch_o = pitch("default", win_s, hop_s, samplerate)
+    pitch_o.set_unit("midi")
+    tolerance = 0.8
+    pitch_o.set_tolerance(tolerance)
+
+    pitches = []
+    while True:
+        audiobuffer = audio_file.read(buffer_size)
+        if len(audiobuffer) != buffer_size * 4:  # 4 bytes per float32 sample
+            break
+        signal = np.frombuffer(audiobuffer, dtype=np.float32)
+        detected_pitch = pitch_o(signal)[0]
+        pitches.append(detected_pitch)
+
+    return jsonify(pitches=pitches)
+
+
 
 # def detect_pitch_aubio(audio_data):
 #     win_s = 4096
